@@ -26,6 +26,8 @@ export interface DeckRecord {
   /** 简中（sc_name），可能为空 */
   name_sc: string | null
   name_en: string
+  /** 是否成功从接口获取到卡片信息（用于区分未找到占位 vs 有效旧译） */
+  resolved: boolean
 }
 
 /** 按主/额外/副分区的卡组 */

@@ -78,6 +78,7 @@ export async function buildDeck(
         name_cn: info?.name_cn ?? PLACEHOLDER(id),
         name_sc: info?.name_sc ?? null,
         name_en: info?.name_en ?? PLACEHOLDER(id),
+        resolved: info !== null,
       })
     }
     return result

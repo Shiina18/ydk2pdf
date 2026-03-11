@@ -10,9 +10,11 @@ const MAX_SIDE_ROWS = 15
 function getName(record: DeckRecord, lang: CardLanguage): string {
   switch (lang) {
     case 'sc': {
-      // 简中缺失时回退中文旧译，并标注以区分
       if (record.name_sc && record.name_sc.trim()) return record.name_sc
-      return `${record.name_cn} (旧译)`
+      // 未从接口获取到信息时（占位），直接用占位文案，不标旧译
+      if (!record.resolved) return record.name_cn
+      // 有效旧译：在中文旧译前加前缀
+      return `(旧译) ${record.name_cn}`
     }
     case 'jp':
       return record.name_jp && record.name_jp.trim() ? record.name_jp : record.name_cn
