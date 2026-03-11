@@ -1,6 +1,5 @@
 import fontkit from '@pdf-lib/fontkit'
 import { PDFBool, PDFDocument, PDFHexString, PDFName } from 'pdf-lib'
-import type { CardLanguage } from '../types/card'
 
 const templatePdfUrl =
   (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
@@ -23,7 +22,6 @@ export async function loadTemplatePdf(): Promise<ArrayBuffer> {
 export async function fillDecklistPdf(
   kvs: Record<string, string | number>,
   templateBuffer: ArrayBuffer,
-  opts?: { lang?: CardLanguage },
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(templateBuffer)
   pdfDoc.registerFontkit(fontkit)

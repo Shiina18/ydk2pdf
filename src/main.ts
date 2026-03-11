@@ -231,15 +231,10 @@ export function setupApp(root: HTMLDivElement) {
       const templateBuffer = await loadTemplatePdf()
       let overflowLines: string[] = []
       const lang = currentLanguage
-      const { kvs, overflow } = deck2kvs(
-        deck,
-        adapter,
-        lang,
-        true,
-      )
+      const { kvs, overflow } = deck2kvs(deck, adapter, lang, true)
       overflowLines = renderOverflow(overflow)
 
-      const pdfBytes = await fillDecklistPdf(kvs, templateBuffer, { lang })
+      const pdfBytes = await fillDecklistPdf(kvs, templateBuffer)
       const stem = lastFileName ? lastFileName.replace(/\.ydk$/i, '') : 'deck'
       const label = LABEL_BY_LANG[lang]
       const filename = `${label}@${stem}.pdf`
