@@ -28,8 +28,7 @@ interface SearchResponse {
 }
 
 /**
- * 请求 ygocdb 搜索接口获取单卡信息（含多语种卡名与类型）。
- * cardId 为字符串（可带前导零如 "03739500"）；API 返回的 id 为数字，按 8 位对齐比较。
+ * 请求 ygocdb 搜索接口获取单卡信息。cardId 是字符串，给什么用什么，直接拼进 URL。
  */
 export async function fetchCardInfo(cardId: string): Promise<CardInfo | null> {
   const url = `${API_BASE}/?search=${cardId}`
@@ -39,8 +38,7 @@ export async function fetchCardInfo(cardId: string): Promise<CardInfo | null> {
     const data: SearchResponse = await res.json()
     const list = data.result
     if (!list || list.length === 0) return null
-    const id8 = cardId.padStart(8, '0')
-    const item = list.find((r) => String(r.id).padStart(8, '0') === id8) ?? list[0]
+    const item = list[0]
     const typeNum = item.data?.type ?? 0
     return {
       type: parseType(typeNum),
