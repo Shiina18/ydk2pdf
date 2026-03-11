@@ -1,0 +1,41 @@
+<div class="container">
+  <h1>游戏王卡表生成器</h1>
+  <div id="drop-zone" class="drop-zone">
+    将 .ydk 文件拖到此处，或点击选择文件
+  </div>
+  <input id="file-input" type="file" accept=".ydk" hidden />
+  <textarea
+    id="ydk-text"
+    class="ydk-text"
+    placeholder="或在此粘贴 YDK 文本…"
+    rows="6"
+  ></textarea>
+  <div class="controls">
+    <div class="language-settings">
+      <span>语言</span>
+      <div class="language-options">
+        <label
+          ><input type="radio" name="decklist-language" value="sc" checked />
+          简中</label
+        >
+        <label
+          ><input type="radio" name="decklist-language" value="jp" /> 日文</label
+        >
+        <label
+          ><input type="radio" name="decklist-language" value="cn" /> 中文旧译</label
+        >
+        <label
+          ><input type="radio" name="decklist-language" value="en" /> 英文</label
+        >
+      </div>
+    </div>
+    <button type="button" id="generate-btn" class="primary-button">
+      生成 PDF
+    </button>
+  </div>
+  <p id="message" class="message"></p>
+  <div id="deck-preview" class="deck-preview" hidden></div>
+  <div id="errors" class="errors" hidden></div>
+  <p class="notes-warn">打印卡表后建议自己卡检一遍——只有你能为自己负责。</p>
+  <footer class="footer">Made with dove by C7</footer>
+</div>

@@ -1,0 +1,14 @@
+node_modules
+dist
+tmp
+.venv
+tsconfig.tsbuildinfo
+*.local
+.DS_Store
+# 备份/临时模板（仅保留 public/中文卡表模板.pdf）
+public/中文卡表模板.*.pdf
+public/*.pypdf.pdf
+# 给大模型看的文档，不提交
+DESIGN.md
+IMPLEMENTATION_PLAN.md
+phases/
