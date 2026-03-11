@@ -220,7 +220,14 @@ export function setupApp(root: HTMLDivElement) {
 
     try {
       const idChangelog = await fetchIdChangelog()
-      const { deck, notFoundIds } = await buildDeck(sectionDeck, idChangelog)
+      const { deck, notFoundIds } = await buildDeck(
+        sectionDeck,
+        idChangelog,
+        ({ done, total }) => {
+          const percent = total > 0 ? Math.round((done / total) * 100) : 0
+          setMessage(`生成中… (${percent}%)`)
+        },
+      )
 
       const adapterRes = await fetch(
         (import.meta.env.BASE_URL || '/') + 'adapter.json',

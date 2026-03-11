@@ -8,10 +8,13 @@ const PLACEHOLDER = (cardId: number) => `(卡号 ${cardId} 未找到)`
 /**
  * 从 SectionDeck + idChangelog 归一化卡号，请求 API 获取每张卡的类型与多语种名，
  * 按原顺序与数量组装成 Deck（main/extra/side 各为 DeckRecord[]）。
+ *
+ * 可选 onProgress 回调用于进度展示（done/total 基于去重后的卡号个数）。
  */
 export async function buildDeck(
   sectionDeck: SectionDeck,
   idChangelog: Record<string, number>,
+  onProgress?: (p: { done: number; total: number }) => void,
 ): Promise<{
   deck: Deck
   notFoundIds: number[]
@@ -24,8 +27,19 @@ export async function buildDeck(
   const uniqueExtra = [...new Set(normExtra)]
   const uniqueSide = [...new Set(normSide)]
 
+  const totalUnique = uniqueMain.length + uniqueExtra.length + uniqueSide.length
+  let done = 0
+
   const fetchAll = async (ids: number[]) => {
-    const promises = ids.map((id) => cachedFetchCardInfo(id))
+    const promises = ids.map((id) =>
+      cachedFetchCardInfo(id).then((info) => {
+        done += 1
+        if (onProgress && totalUnique > 0) {
+          onProgress({ done, total: totalUnique })
+        }
+        return info
+      }),
+    )
     const results = await Promise.all(promises)
     const map = new Map<number, import('../types/card').CardInfo | null>()
     ids.forEach((id, i) => {
