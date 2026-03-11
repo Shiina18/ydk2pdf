@@ -35,7 +35,7 @@ function readFileAsText(file: File): Promise<string> {
 
 function renderDeckPreview(
   el: HTMLElement,
-  sectionDeck: { main: number[]; extra: number[]; side: number[] },
+  sectionDeck: { main: string[]; extra: string[]; side: string[] },
 ) {
   const main = sectionDeck.main.length
   const extra = sectionDeck.extra.length
@@ -105,7 +105,7 @@ export function setupApp(root: HTMLDivElement) {
   }
 
   function showErrors(
-    notFound: number[],
+    notFound: string[],
     overflowLines: string[],
   ) {
     if (notFound.length === 0 && overflowLines.length === 0) {

@@ -3,7 +3,7 @@ import type { Deck, DeckRecord } from '../types/card'
 import { normalizeCardIds } from '../utils/normalizeCardId'
 import { cachedFetchCardInfo } from '../api/cardApi'
 
-const PLACEHOLDER = (cardId: number) => `(卡号 ${cardId} 未找到)`
+const PLACEHOLDER = (cardId: string) => `(卡号 ${cardId} 未找到)`
 
 /**
  * 从 SectionDeck + idChangelog 归一化卡号，请求 API 获取每张卡的类型与多语种名，
@@ -17,9 +17,9 @@ export async function buildDeck(
   onProgress?: (p: { done: number; total: number }) => void,
 ): Promise<{
   deck: Deck
-  notFoundIds: number[]
+  notFoundIds: string[]
 }> {
-  const notFoundIds: number[] = []
+  const notFoundIds: string[] = []
   const normMain = normalizeCardIds(sectionDeck.main, idChangelog)
   const normExtra = normalizeCardIds(sectionDeck.extra, idChangelog)
   const normSide = normalizeCardIds(sectionDeck.side, idChangelog)
@@ -30,7 +30,7 @@ export async function buildDeck(
   const totalUnique = uniqueMain.length + uniqueExtra.length + uniqueSide.length
   let done = 0
 
-  const fetchAll = async (ids: number[]) => {
+  const fetchAll = async (ids: string[]) => {
     const promises = ids.map((id) =>
       cachedFetchCardInfo(id).then((info) => {
         done += 1
@@ -41,7 +41,7 @@ export async function buildDeck(
       }),
     )
     const results = await Promise.all(promises)
-    const map = new Map<number, import('../types/card').CardInfo | null>()
+    const map = new Map<string, import('../types/card').CardInfo | null>()
     ids.forEach((id, i) => {
       map.set(id, results[i] ?? null)
       if (!results[i]) notFoundIds.push(id)
@@ -56,15 +56,15 @@ export async function buildDeck(
   ])
 
   const toRecords = (
-    normIds: number[],
-    infos: Map<number, import('../types/card').CardInfo | null>,
+    normIds: string[],
+    infos: Map<string, import('../types/card').CardInfo | null>,
   ): DeckRecord[] => {
-    const countMap = new Map<number, number>()
+    const countMap = new Map<string, number>()
     for (const id of normIds) {
       countMap.set(id, (countMap.get(id) ?? 0) + 1)
     }
     const result: DeckRecord[] = []
-    const seen = new Set<number>()
+    const seen = new Set<string>()
     for (const id of normIds) {
       if (seen.has(id)) continue
       seen.add(id)

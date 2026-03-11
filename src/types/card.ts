@@ -15,9 +15,9 @@ export interface CardInfo extends CardNames {
   type: CardType
 }
 
-/** 卡组中的单条记录（含卡号、数量、类型、多语种名） */
+/** 卡组中的单条记录（含卡号、数量、类型、多语种名）。卡号为字符串以保留前导零。 */
 export interface DeckRecord {
-  card_id: number
+  card_id: string
   count: number
   type: CardType | null
   name_jp: string
