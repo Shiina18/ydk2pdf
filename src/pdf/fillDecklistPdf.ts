@@ -7,6 +7,7 @@ const templatePdfUrl =
     : '/') + '中文卡表模板.pdf'
 
 let templateBytes: ArrayBuffer | null = null
+let fontBytesCache: ArrayBuffer | null = null
 
 export async function loadTemplatePdf(): Promise<ArrayBuffer> {
   if (templateBytes) return templateBytes
@@ -31,17 +32,64 @@ export async function fillDecklistPdf(
     (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
       ? import.meta.env.BASE_URL
       : '/') || '/'
-  // 仅用一份泛 CJK 字体（Source Han Sans），覆盖简中/日文/中文旧译/英文，减少体积
   const fontPath = `${baseUrl}fonts/SourceHanSans-Regular.otf`
 
-  // 嵌入字体（子集嵌入）以保证跨电脑/跨阅读器显示一致
-  const fontBytes = await fetch(fontPath).then((r) => {
-    if (!r.ok) {
-      throw new Error(`加载字体失败: ${fontPath}`)
+  let embeddedFont:
+    | import('pdf-lib').PDFFont
+    | null = null
+
+  // 首次请求时加载字体，之后复用缓存，避免每次都下载 10+MB。
+  // 若下载/解析失败，则放弃嵌入字体，仅依赖阅读器本地字体渲染。
+  if (!fontBytesCache) {
+    try {
+      // 在应用中给出明确提示：正在下载字体
+      if (typeof document !== 'undefined') {
+        const msgEl = document.querySelector<HTMLParagraphElement>('#message')
+        if (msgEl) {
+          msgEl.textContent = '首次使用需要下载字体（约 10+ MB），请耐心等待…'
+        }
+      }
+
+      const controller =
+        typeof AbortController !== 'undefined'
+          ? (new AbortController() as AbortController)
+          : undefined
+      const timeoutId =
+        controller != null
+          ? (setTimeout(() => controller.abort(), 7000) as unknown as number)
+          : undefined
+
+      let res: Response
+      try {
+        res = await fetch(fontPath, {
+          signal: controller?.signal as AbortSignal | undefined,
+        })
+      } finally {
+        if (timeoutId !== undefined) {
+          clearTimeout(timeoutId)
+        }
+      }
+      if (!res.ok) {
+        throw new Error(`加载字体失败: ${fontPath}`)
+      }
+      fontBytesCache = await res.arrayBuffer()
+    } catch {
+      fontBytesCache = null
+      if (typeof document !== 'undefined') {
+        const warnEl =
+          document.querySelector<HTMLParagraphElement>('#font-warning')
+        if (warnEl) {
+          warnEl.hidden = false
+          warnEl.textContent =
+            '字体下载失败：已退回系统字体显示，部分文字可能无法正常显示。'
+        }
+      }
     }
-    return r.arrayBuffer()
-  })
-  const embeddedFont = await pdfDoc.embedFont(fontBytes, { subset: true })
+  }
+
+  if (fontBytesCache) {
+    embeddedFont = await pdfDoc.embedFont(fontBytesCache, { subset: true })
+  }
 
   // 让 PDF 阅读器根据字段值 /V 自动渲染（作为兜底）
   try {
@@ -78,11 +126,13 @@ export async function fillDecklistPdf(
     }
   }
 
-  // 用嵌入字体生成外观流，避免依赖用户电脑字体
-  try {
-    form.updateFieldAppearances(embeddedFont)
-  } catch {
-    // ignore: 若模板字段异常，至少保留 /V + NeedAppearances
+  // 用嵌入字体生成外观流，避免依赖用户电脑字体；若未成功嵌入，则直接依赖 NeedAppearances + 阅读器本地字体。
+  if (embeddedFont) {
+    try {
+      form.updateFieldAppearances(embeddedFont)
+    } catch {
+      // ignore: 若模板字段异常，至少保留 /V + NeedAppearances
+    }
   }
 
   return pdfDoc.save({ updateFieldAppearances: false })

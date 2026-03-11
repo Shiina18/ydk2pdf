@@ -236,6 +236,8 @@ export function setupApp(root: HTMLDivElement) {
       const adapter: Record<string, string> = await adapterRes.json()
 
       const templateBuffer = await loadTemplatePdf()
+      // 进度条到 100% 之后，开始实际生成 PDF（首次加载字体可能稍慢）
+      setMessage('生成 PDF 中…（首次加载字体可能稍慢）')
       let overflowLines: string[] = []
       const lang = currentLanguage
       const { kvs, overflow } = deck2kvs(deck, adapter, lang, true)
