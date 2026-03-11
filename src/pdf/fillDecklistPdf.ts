@@ -17,11 +17,6 @@ export async function loadTemplatePdf(): Promise<ArrayBuffer> {
   return templateBytes
 }
 
-/** 连接建立超时（拿到响应头为止） */
-const FONT_CONNECTION_TIMEOUT_MS = 7000
-/** 读 body 超时（大文件下载可较慢） */
-const FONT_READ_BODY_TIMEOUT_MS = 60000
-
 /**
  * 使用同一份模板副本，按 kvs（表单域名 → 值）填充 AcroForm，返回 PDF 字节。
  * @param opts.embedFont 是否内嵌字体（默认 true）；false 时仅写 /V + NeedAppearances，依赖阅读器字体
@@ -54,49 +49,63 @@ export async function fillDecklistPdf(
         if (msgEl) {
           msgEl.textContent = '首次使用需要下载字体（约 10+ MB），请耐心等待…'
         }
+        const wrap = document.querySelector<HTMLElement>('#font-progress-wrap')
+        const progressEl =
+          document.querySelector<HTMLProgressElement>('#font-progress')
+        if (wrap) wrap.hidden = false
+        if (progressEl) {
+          progressEl.value = 0
+          progressEl.max = 100
+        }
       }
 
-      const controller =
-        typeof AbortController !== 'undefined'
-          ? new AbortController()
-          : undefined
-      let connTimeoutId: ReturnType<typeof setTimeout> | undefined
-      let readTimeoutId: ReturnType<typeof setTimeout> | undefined
-
-      const connTimeoutPromise = new Promise<never>((_, reject) => {
-        connTimeoutId = setTimeout(
-          () => {
-            controller?.abort()
-            reject(new Error('字体连接超时'))
-          },
-          FONT_CONNECTION_TIMEOUT_MS,
-        )
-      })
-
-      const res = await Promise.race([
-        connTimeoutPromise,
-        fetch(fontPath, { signal: controller?.signal }),
-      ])
-      if (connTimeoutId !== undefined) clearTimeout(connTimeoutId)
+      const res = await fetch(fontPath)
       if (!res.ok) {
         throw new Error(`加载字体失败: ${fontPath}`)
       }
 
-      const readTimeoutPromise = new Promise<never>((_, reject) => {
-        readTimeoutId = setTimeout(
-          () => {
-            controller?.abort()
-            reject(new Error('字体下载超时'))
-          },
-          FONT_READ_BODY_TIMEOUT_MS,
-        )
-      })
+      const total = res.headers.get('Content-Length')
+        ? parseInt(res.headers.get('Content-Length')!, 10)
+        : null
 
-      const buf = await Promise.race([
-        readTimeoutPromise,
-        res.arrayBuffer(),
-      ])
-      if (readTimeoutId !== undefined) clearTimeout(readTimeoutId)
+      const reader = res.body!.getReader()
+      const chunks: Uint8Array[] = []
+      let loaded = 0
+      const msgEl =
+        typeof document !== 'undefined'
+          ? document.querySelector<HTMLParagraphElement>('#message')
+          : null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+        loaded += value.length
+        if (msgEl) {
+            const mb = (loaded / 1024 / 1024).toFixed(1)
+            msgEl.textContent =
+              total != null
+                ? `正在下载字体… ${mb} MB / ${(total / 1024 / 1024).toFixed(1)} MB (${Math.round((loaded / total) * 100)}%)`
+                : `正在下载字体… ${mb} MB`
+          }
+          const progressEl =
+            typeof document !== 'undefined'
+              ? document.querySelector<HTMLProgressElement>('#font-progress')
+              : null
+          if (progressEl && total != null) {
+            progressEl.value = Math.round((loaded / total) * 100)
+            progressEl.max = 100
+          }
+      }
+      reader.releaseLock()
+
+      const out = new Uint8Array(loaded)
+      let offset = 0
+      for (const c of chunks) {
+        out.set(c, offset)
+        offset += c.length
+      }
+      const buf = out.buffer
       fontBytesCache = buf
 
       if (typeof document !== 'undefined') {
@@ -106,6 +115,8 @@ export async function fillDecklistPdf(
           successEl.hidden = false
           successEl.textContent = '字体已加载，后续生成将更快。'
         }
+        const wrap = document.querySelector<HTMLElement>('#font-progress-wrap')
+        if (wrap) wrap.hidden = true
       }
     } catch {
       fontBytesCache = null
@@ -117,6 +128,8 @@ export async function fillDecklistPdf(
           warnEl.textContent =
             '字体下载失败：已退回系统字体显示，部分文字可能无法正常显示。'
         }
+        const wrap = document.querySelector<HTMLElement>('#font-progress-wrap')
+        if (wrap) wrap.hidden = true
       }
     }
   }
