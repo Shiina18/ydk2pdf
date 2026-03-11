@@ -17,12 +17,19 @@ export async function loadTemplatePdf(): Promise<ArrayBuffer> {
   return templateBytes
 }
 
+/** 连接建立超时（拿到响应头为止） */
+const FONT_CONNECTION_TIMEOUT_MS = 7000
+/** 读 body 超时（大文件下载可较慢） */
+const FONT_READ_BODY_TIMEOUT_MS = 60000
+
 /**
  * 使用同一份模板副本，按 kvs（表单域名 → 值）填充 AcroForm，返回 PDF 字节。
+ * @param opts.embedFont 是否内嵌字体（默认 true）；false 时仅写 /V + NeedAppearances，依赖阅读器字体
  */
 export async function fillDecklistPdf(
   kvs: Record<string, string | number>,
   templateBuffer: ArrayBuffer,
+  opts?: { embedFont?: boolean },
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(templateBuffer)
   pdfDoc.registerFontkit(fontkit)
@@ -33,18 +40,15 @@ export async function fillDecklistPdf(
       ? import.meta.env.BASE_URL
       : '/') || '/'
   const fontPath = `${baseUrl}fonts/SourceHanSans-Regular.otf`
+  const embedFont = opts?.embedFont !== false
 
   let embeddedFont:
     | import('pdf-lib').PDFFont
     | null = null
 
-  const FONT_LOAD_TIMEOUT_MS = 7000
-
-  // 首次请求时加载字体，之后复用缓存，避免每次都下载 10+MB。
-  // 若下载/解析失败，则放弃嵌入字体，仅依赖阅读器本地字体渲染。
-  if (!fontBytesCache) {
+  // 仅当选择内嵌字体且尚未缓存时，才请求字体
+  if (embedFont && !fontBytesCache) {
     try {
-      // 在应用中给出明确提示：正在下载字体
       if (typeof document !== 'undefined') {
         const msgEl = document.querySelector<HTMLParagraphElement>('#message')
         if (msgEl) {
@@ -56,31 +60,53 @@ export async function fillDecklistPdf(
         typeof AbortController !== 'undefined'
           ? new AbortController()
           : undefined
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
+      let connTimeoutId: ReturnType<typeof setTimeout> | undefined
+      let readTimeoutId: ReturnType<typeof setTimeout> | undefined
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(
+      const connTimeoutPromise = new Promise<never>((_, reject) => {
+        connTimeoutId = setTimeout(
           () => {
             controller?.abort()
-            reject(new Error('字体加载超时'))
+            reject(new Error('字体连接超时'))
           },
-          FONT_LOAD_TIMEOUT_MS,
+          FONT_CONNECTION_TIMEOUT_MS,
         )
       })
 
-      const fetchPromise = (async () => {
-        const res = await fetch(fontPath, {
-          signal: controller?.signal,
-        })
-        if (!res.ok) {
-          throw new Error(`加载字体失败: ${fontPath}`)
-        }
-        return res.arrayBuffer()
-      })()
+      const res = await Promise.race([
+        connTimeoutPromise,
+        fetch(fontPath, { signal: controller?.signal }),
+      ])
+      if (connTimeoutId !== undefined) clearTimeout(connTimeoutId)
+      if (!res.ok) {
+        throw new Error(`加载字体失败: ${fontPath}`)
+      }
 
-      const result = await Promise.race([timeoutPromise, fetchPromise])
-      if (timeoutId !== undefined) clearTimeout(timeoutId)
-      fontBytesCache = result
+      const readTimeoutPromise = new Promise<never>((_, reject) => {
+        readTimeoutId = setTimeout(
+          () => {
+            controller?.abort()
+            reject(new Error('字体下载超时'))
+          },
+          FONT_READ_BODY_TIMEOUT_MS,
+        )
+      })
+
+      const buf = await Promise.race([
+        readTimeoutPromise,
+        res.arrayBuffer(),
+      ])
+      if (readTimeoutId !== undefined) clearTimeout(readTimeoutId)
+      fontBytesCache = buf
+
+      if (typeof document !== 'undefined') {
+        const successEl =
+          document.querySelector<HTMLParagraphElement>('#font-success')
+        if (successEl) {
+          successEl.hidden = false
+          successEl.textContent = '字体已加载，后续生成将更快。'
+        }
+      }
     } catch {
       fontBytesCache = null
       if (typeof document !== 'undefined') {
@@ -95,7 +121,7 @@ export async function fillDecklistPdf(
     }
   }
 
-  if (fontBytesCache) {
+  if (embedFont && fontBytesCache) {
     embeddedFont = await pdfDoc.embedFont(fontBytesCache, { subset: true })
   }
 

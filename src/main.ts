@@ -76,6 +76,10 @@ export function setupApp(root: HTMLDivElement) {
   const ydkText = getRequiredElement<HTMLTextAreaElement>('#ydk-text', root)
   const generateBtn = getRequiredElement<HTMLButtonElement>('#generate-btn', root)
   const messageEl = getRequiredElement<HTMLParagraphElement>('#message', root)
+  const embedFontCheckbox = getRequiredElement<HTMLInputElement>(
+    '#embed-font',
+    root,
+  )
   const deckPreview = getRequiredElement<HTMLDivElement>('#deck-preview', root)
   const errorsEl = getRequiredElement<HTMLDivElement>('#errors', root)
   const languageRadios = root.querySelectorAll<HTMLInputElement>(
@@ -236,14 +240,20 @@ export function setupApp(root: HTMLDivElement) {
       const adapter: Record<string, string> = await adapterRes.json()
 
       const templateBuffer = await loadTemplatePdf()
-      // 进度条到 100% 之后，开始实际生成 PDF（首次加载字体可能稍慢）
-      setMessage('生成 PDF 中…（首次加载字体可能稍慢）')
+      const embedFont = embedFontCheckbox.checked
+      setMessage(
+        embedFont
+          ? '生成 PDF 中…（首次加载字体可能稍慢）'
+          : '生成 PDF 中…',
+      )
       let overflowLines: string[] = []
       const lang = currentLanguage
       const { kvs, overflow } = deck2kvs(deck, adapter, lang, true)
       overflowLines = renderOverflow(overflow)
 
-      const pdfBytes = await fillDecklistPdf(kvs, templateBuffer)
+      const pdfBytes = await fillDecklistPdf(kvs, templateBuffer, {
+        embedFont,
+      })
       const stem = lastFileName ? lastFileName.replace(/\.ydk$/i, '') : 'deck'
       const label = LABEL_BY_LANG[lang]
       const filename = `${label}@${stem}.pdf`
