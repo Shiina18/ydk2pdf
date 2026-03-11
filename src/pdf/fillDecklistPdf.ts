@@ -38,6 +38,8 @@ export async function fillDecklistPdf(
     | import('pdf-lib').PDFFont
     | null = null
 
+  const FONT_LOAD_TIMEOUT_MS = 7000
+
   // 首次请求时加载字体，之后复用缓存，避免每次都下载 10+MB。
   // 若下载/解析失败，则放弃嵌入字体，仅依赖阅读器本地字体渲染。
   if (!fontBytesCache) {
@@ -52,27 +54,33 @@ export async function fillDecklistPdf(
 
       const controller =
         typeof AbortController !== 'undefined'
-          ? (new AbortController() as AbortController)
+          ? new AbortController()
           : undefined
-      const timeoutId =
-        controller != null
-          ? (setTimeout(() => controller.abort(), 7000) as unknown as number)
-          : undefined
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
 
-      let res: Response
-      try {
-        res = await fetch(fontPath, {
-          signal: controller?.signal as AbortSignal | undefined,
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => {
+            controller?.abort()
+            reject(new Error('字体加载超时'))
+          },
+          FONT_LOAD_TIMEOUT_MS,
+        )
+      })
+
+      const fetchPromise = (async () => {
+        const res = await fetch(fontPath, {
+          signal: controller?.signal,
         })
-      } finally {
-        if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
+        if (!res.ok) {
+          throw new Error(`加载字体失败: ${fontPath}`)
         }
-      }
-      if (!res.ok) {
-        throw new Error(`加载字体失败: ${fontPath}`)
-      }
-      fontBytesCache = await res.arrayBuffer()
+        return res.arrayBuffer()
+      })()
+
+      const result = await Promise.race([timeoutPromise, fetchPromise])
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+      fontBytesCache = result
     } catch {
       fontBytesCache = null
       if (typeof document !== 'undefined') {
