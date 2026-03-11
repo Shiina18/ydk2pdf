@@ -193,3 +193,10 @@
   color: #9ca3af;
   text-align: center;
 }
+.footer a {
+  color: #6b7280;
+  text-decoration: underline;
+}
+.footer a:hover {
+  color: #9ca3af;
+}
